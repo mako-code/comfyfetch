@@ -67,12 +67,16 @@ else
     pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
     # 3. Flash Attention & Xformers (Critical for SeedVR)
-    # Removing --no-build-isolation can help if wheel build failed previously, but usually safer with it.
     echo '   - Installing Flash Attention (This takes time)...'
-    pip install ninja
+    # Install dependencies manually first
+    pip install ninja einops packaging
+    
+    # Install xformers
     pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
-    # Force reinstall flash-attn to match new GPU
-    pip install flash-attn --no-build-isolation --force-reinstall
+    
+    # Install flash-attn WITHOUT upgrading torch (FIXED)
+    echo '   - Compiling Flash Attention...'
+    pip install flash-attn --no-build-isolation --no-deps --force-reinstall
 
     # 4. Helper Tools
     echo '   - Installing Tools...'
