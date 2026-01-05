@@ -1,8 +1,6 @@
 #!/bin/bash
 
-# --- 1. GPU Change Detection ---
-# Detects if volume was moved to a different GPU type and forces reinstall
-# Fixes issues with Flash Attention & Xformers compatibility
+# --- 1. GPU Change Detection & Self-Healing ---
 echo "🔍 Checking GPU Hardware..."
 CURRENT_GPU=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | head -n 1)
 LAST_GPU_FILE="/workspace/last_gpu_name"
@@ -12,19 +10,17 @@ if [ -f "$LAST_GPU_FILE" ]; then
     if [ "$CURRENT_GPU" != "$LAST_GPU" ]; then
         echo "⚠️ GPU Changed: $LAST_GPU -> $CURRENT_GPU"
         echo "♻️  Forcing re-installation of hardware-specific libraries..."
-        rm -f "/workspace/comfy_deps_installed_v2" # Force dependency reinstall
-        rm -rf /root/.triton/cache # Clear Triton cache
+        rm -f "/workspace/comfy_deps_installed_v2"
+        rm -rf /root/.triton/cache
     else
         echo "✅ GPU matches previous run: $CURRENT_GPU"
     fi
 else
     echo "🆕 First run or new setup detected: $CURRENT_GPU"
 fi
-# Save current GPU for next boot
 echo "$CURRENT_GPU" > "$LAST_GPU_FILE"
 
-
-# --- 2. System Setup (Fast checks) ---
+# --- 2. System Setup ---
 echo '🚀 Setting up Container...'
 if [ ! -f "/workspace/sys_deps_installed" ]; then
     apt-get update >/dev/null && apt-get install -y fish git curl aria2 nano >/dev/null
@@ -36,7 +32,7 @@ if [ ! -f /usr/local/bin/filebrowser ]; then
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null
 fi
 
-# --- 3. ComfyUI Installation (Persistent) ---
+# --- 3. ComfyUI Installation ---
 cd /workspace
 if [ ! -d 'ComfyUI' ]; then
     echo '📥 Cloning ComfyUI...'
@@ -52,7 +48,19 @@ if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 fi
 
-# --- 4. Dependencies (Smart Install) ---
+# --- 4. Dependencies (Smart Install with Self-Healing) ---
+
+# [SELF-HEALING] Check for broken Torch 2.9.1 installation and force repair
+# This fixes the "ModuleNotFoundError: gradio" and "tqdm" errors caused by broken environments
+if pip freeze | grep -q "torch==2.9.1"; then
+    echo "⚠️ Detected broken PyTorch 2.9.1 installation!"
+    echo "♻️  Removing marker file to force full repair..."
+    rm -f "/workspace/comfy_deps_installed_v2"
+    # Uninstalling broken packages to start fresh
+    pip uninstall -y torch torchvision torchaudio xformers flash-attn
+fi
+
+# Check if we need to install dependencies
 if [ -f "/workspace/comfy_deps_installed_v2" ]; then
     echo "✅ Dependencies already installed. Skipping..."
 else
@@ -62,27 +70,26 @@ else
     # 1. Install core requirements
     pip install -r requirements.txt >/dev/null
 
-    # 2. Upgrade PyTorch (2.4.1)
+    # 2. Upgrade PyTorch to 2.4.1 (Explicitly)
     echo '   - Upgrading PyTorch...'
     pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
-    # 3. Flash Attention & Xformers (Critical for SeedVR)
-    echo '   - Installing Flash Attention (This takes time)...'
-    # Install dependencies manually first
+    # 3. Flash Attention & Xformers (The Safe Way)
+    echo '   - Installing Flash Attention...'
+    # Pre-install dependencies so we can use --no-deps later
     pip install ninja einops packaging
     
-    # Install xformers
+    # Install xformers compatible with PyTorch 2.4.1
     pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
     
-    # Install flash-attn WITHOUT upgrading torch (FIXED)
-    echo '   - Compiling Flash Attention...'
+    # Install flash-attn WITHOUT upgrading torch (The Fix for 2026 issue)
     pip install flash-attn --no-build-isolation --no-deps --force-reinstall
 
-    # 4. Helper Tools
+    # 4. Install Tools (Fixes missing gradio/tqdm)
     echo '   - Installing Tools...'
-    python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab
+    python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
 
-    # Marker file
+    # Create marker file
     touch /workspace/comfy_deps_installed_v2
 fi
 
