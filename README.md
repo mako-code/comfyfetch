@@ -30,6 +30,27 @@ Diese Variablen im RunPod Template setzen:
 * **8080:** Filebrowser
 * **3000:** Dependency Manager (pip GUI)
 
+## Manueller Sync (Laufender Betrieb)
+
+Um neue Modelle oder Workflows ohne Neustart des Pods herunterzuladen:
+
+**Einmaliger Befehl:**
+
+```bash
+curl -fsSL [https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh](https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh) | bash
+
+```
+
+**Alias einrichten (empfohlen):**
+Führe dies einmal im Terminal aus, um den Befehl `sync-models` zu erstellen:
+
+```bash
+echo 'curl -fsSL [https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh](https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh) | bash' > /usr/local/bin/sync-models && chmod +x /usr/local/bin/sync-models
+
+```
+
+Danach reicht der Befehl: `sync-models`
+
 ## Hinweise
 
 * **Dauer:** Erster Start dauert ca. 3-5 Min (Kompilierung von Flash Attention).
