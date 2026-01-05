@@ -1,6 +1,30 @@
 #!/bin/bash
 
-# --- 1. System Setup (Fast checks) ---
+# --- 1. GPU Change Detection ---
+# Detects if volume was moved to a different GPU type and forces reinstall
+# Fixes issues with Flash Attention & Xformers compatibility
+echo "🔍 Checking GPU Hardware..."
+CURRENT_GPU=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | head -n 1)
+LAST_GPU_FILE="/workspace/last_gpu_name"
+
+if [ -f "$LAST_GPU_FILE" ]; then
+    LAST_GPU=$(cat "$LAST_GPU_FILE")
+    if [ "$CURRENT_GPU" != "$LAST_GPU" ]; then
+        echo "⚠️ GPU Changed: $LAST_GPU -> $CURRENT_GPU"
+        echo "♻️  Forcing re-installation of hardware-specific libraries..."
+        rm -f "/workspace/comfy_deps_installed_v2" # Force dependency reinstall
+        rm -rf /root/.triton/cache # Clear Triton cache
+    else
+        echo "✅ GPU matches previous run: $CURRENT_GPU"
+    fi
+else
+    echo "🆕 First run or new setup detected: $CURRENT_GPU"
+fi
+# Save current GPU for next boot
+echo "$CURRENT_GPU" > "$LAST_GPU_FILE"
+
+
+# --- 2. System Setup (Fast checks) ---
 echo '🚀 Setting up Container...'
 if [ ! -f "/workspace/sys_deps_installed" ]; then
     apt-get update >/dev/null && apt-get install -y fish git curl aria2 nano >/dev/null
@@ -12,7 +36,7 @@ if [ ! -f /usr/local/bin/filebrowser ]; then
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null
 fi
 
-# --- 2. ComfyUI Installation (Persistent) ---
+# --- 3. ComfyUI Installation (Persistent) ---
 cd /workspace
 if [ ! -d 'ComfyUI' ]; then
     echo '📥 Cloning ComfyUI...'
@@ -28,8 +52,7 @@ if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 fi
 
-# --- 3. Dependencies (SKIP IF INSTALLED) ---
-# Check for marker file to save time on restarts
+# --- 4. Dependencies (Smart Install) ---
 if [ -f "/workspace/comfy_deps_installed_v2" ]; then
     echo "✅ Dependencies already installed. Skipping..."
 else
@@ -43,21 +66,23 @@ else
     echo '   - Upgrading PyTorch...'
     pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
-    # 3. Flash Attention & Xformers
-    echo '   - Installing Flash Attention (This takes time only once)...'
+    # 3. Flash Attention & Xformers (Critical for SeedVR)
+    # Removing --no-build-isolation can help if wheel build failed previously, but usually safer with it.
+    echo '   - Installing Flash Attention (This takes time)...'
     pip install ninja
     pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
-    pip install flash-attn --no-build-isolation
+    # Force reinstall flash-attn to match new GPU
+    pip install flash-attn --no-build-isolation --force-reinstall
 
     # 4. Helper Tools
     echo '   - Installing Tools...'
     python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab
 
-    # Create marker file
+    # Marker file
     touch /workspace/comfy_deps_installed_v2
 fi
 
-# --- 4. Custom Workflows (Hugging Face) ---
+# --- 5. Custom Workflows (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
     echo "📥 Checking Workflows..."
     python3 -c "
@@ -75,7 +100,7 @@ except Exception:
 "
 fi
 
-# --- 5. Hugging Face Models Sync ---
+# --- 6. Hugging Face Models Sync ---
 if [ ! -z "$HF_TOKEN" ] && [ ! -z "$HF_MODELS" ]; then
     echo "🔐 Checking Models..."
     python3 -c "
@@ -93,7 +118,7 @@ except Exception:
 "
 fi
 
-# --- 6. Launch Services ---
+# --- 7. Launch Services ---
 cat <<EOF > /workspace/dep_manager.py
 import gradio as gr, subprocess, sys
 def install(pkg):
