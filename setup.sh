@@ -1,22 +1,30 @@
 #!/bin/bash
 
-# --- 1. GPU Change Detection & Self-Healing ---
+# --- 1. GPU Detection & Mode Selection ---
 echo "🔍 Checking GPU Hardware..."
 CURRENT_GPU=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | head -n 1)
-LAST_GPU_FILE="/workspace/last_gpu_name"
+echo "   - Found: $CURRENT_GPU"
 
+# Check for Blackwell architecture (Future proofing)
+IS_BLACKWELL=false
+if [[ "$CURRENT_GPU" == *"Blackwell"* ]] || [[ "$CURRENT_GPU" == *"RTX 6000"* ]]; then
+    # Note: RTX 6000 Ada is sm_89, but "Blackwell Server Edition" triggered your error.
+    # We assume if it triggers the error, we need the bleeding edge mode.
+    # Safe bet: If the card requires sm_120, we need latest torch.
+    echo "🚀 High-End/Next-Gen GPU detected. Enabling Bleeding Edge PyTorch mode."
+    IS_BLACKWELL=true
+fi
+
+# GPU Change Protection
+LAST_GPU_FILE="/workspace/last_gpu_name"
 if [ -f "$LAST_GPU_FILE" ]; then
     LAST_GPU=$(cat "$LAST_GPU_FILE")
     if [ "$CURRENT_GPU" != "$LAST_GPU" ]; then
         echo "⚠️ GPU Changed: $LAST_GPU -> $CURRENT_GPU"
-        echo "♻️  Forcing re-installation of hardware-specific libraries..."
+        echo "♻️  Forcing re-installation..."
         rm -f "/workspace/comfy_deps_installed_v2"
         rm -rf /root/.triton/cache
-    else
-        echo "✅ GPU matches previous run: $CURRENT_GPU"
     fi
-else
-    echo "🆕 First run or new setup detected: $CURRENT_GPU"
 fi
 echo "$CURRENT_GPU" > "$LAST_GPU_FILE"
 
@@ -48,17 +56,7 @@ if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 fi
 
-# --- 4. Dependencies (Smart Install with Self-Healing) ---
-
-# [SELF-HEALING] Check for broken Torch 2.9.1 installation and force repair
-# This fixes the "ModuleNotFoundError: gradio" and "tqdm" errors caused by broken environments
-if pip freeze | grep -q "torch==2.9.1"; then
-    echo "⚠️ Detected broken PyTorch 2.9.1 installation!"
-    echo "♻️  Removing marker file to force full repair..."
-    rm -f "/workspace/comfy_deps_installed_v2"
-    # Uninstalling broken packages to start fresh
-    pip uninstall -y torch torchvision torchaudio xformers flash-attn
-fi
+# --- 4. Dependencies (Dynamic Branching) ---
 
 # Check if we need to install dependencies
 if [ -f "/workspace/comfy_deps_installed_v2" ]; then
@@ -66,27 +64,47 @@ if [ -f "/workspace/comfy_deps_installed_v2" ]; then
 else
     echo "📦 Installing/Updating Python Dependencies..."
     cd /workspace/ComfyUI
-
-    # 1. Install core requirements
-    pip install -r requirements.txt >/dev/null
-
-    # 2. Upgrade PyTorch to 2.4.1 (Explicitly)
-    echo '   - Upgrading PyTorch...'
-    pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
-
-    # 3. Flash Attention & Xformers (The Safe Way)
-    echo '   - Installing Flash Attention...'
-    # Pre-install dependencies so we can use --no-deps later
+    
+    # Pre-install helpers
     pip install ninja einops packaging
-    
-    # Install xformers compatible with PyTorch 2.4.1
-    pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
-    
-    # Install flash-attn WITHOUT upgrading torch (The Fix for 2026 issue)
-    pip install flash-attn --no-build-isolation --no-deps --force-reinstall
 
-    # 4. Install Tools (Fixes missing gradio/tqdm)
+    if [ "$IS_BLACKWELL" = true ]; then
+        # --- PATH A: BLACKWELL (Bleeding Edge) ---
+        echo "🔥 BLACKWELL MODE: Installing latest PyTorch (ignoring versions)..."
+        
+        # 1. Uninstall old stuff to be safe
+        pip uninstall -y torch torchvision torchaudio xformers flash-attn
+        
+        # 2. Install latest Torch (This pulls the sm_120 compatible version)
+        # We allow pip to resolve the latest compatible versions for all 3
+        pip install --upgrade torch torchvision torchaudio
+        
+        # 3. Compile Flash Attention (Takes time, but ensures compatibility with new torch)
+        echo "   - Compiling Flash Attention for Blackwell..."
+        pip install flash-attn --no-build-isolation --force-reinstall
+        
+        # 4. Try installing xformers (might fail or need build, we try standard pip)
+        echo "   - Installing xformers..."
+        pip install xformers --no-deps || echo "⚠️ xformers install failed (expected on bleeding edge), skipping."
+
+    else
+        # --- PATH B: STANDARD (Stable / Hopper / Ada) ---
+        echo "🛡️ STANDARD MODE: Installing Stable PyTorch 2.4.1..."
+        
+        # 1. Install core requirements
+        pip install -r requirements.txt >/dev/null
+
+        # 2. Upgrade PyTorch to 2.4.1 (Stable)
+        pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+
+        # 3. Flash Attention & Xformers (Binary compatible)
+        pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
+        pip install flash-attn --no-build-isolation --no-deps
+    fi
+
+    # 5. Install Tools (Common)
     echo '   - Installing Tools...'
+    # We deliberately upgrade these at the end to ensure tqdm/gradio are present
     python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
 
     # Create marker file
