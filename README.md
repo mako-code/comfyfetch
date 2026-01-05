@@ -34,3 +34,4 @@ Diese Variablen im RunPod Template setzen:
 
 * **Dauer:** Erster Start dauert ca. 3-5 Min (Kompilierung von Flash Attention).
 * **Struktur:** Das Skript erwartet im `HF_MODELS` Dataset Unterordner wie `checkpoints`, `loras`, `vae` etc.
+* **Updates:** Nach dem erstmaligen Starten von ComfyUI sollte über den ComfyUI-Manager einmal "Update all" ausgeführt und im Anschluss der ComfyUI-Server neugestartet werden.
