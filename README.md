@@ -37,16 +37,14 @@ Um neue Modelle oder Workflows ohne Neustart des Pods herunterzuladen:
 **Einmaliger Befehl:**
 
 ```bash
-curl -fsSL [https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh](https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh) | bash
-
+curl -fsSL https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh | bash
 ```
 
 **Alias einrichten (empfohlen):**
 Führe dies einmal im Terminal aus, um den Befehl `sync-models` zu erstellen:
 
 ```bash
-echo 'curl -fsSL [https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh](https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh) | bash' > /usr/local/bin/sync-models && chmod +x /usr/local/bin/sync-models
-
+echo 'curl -fsSL https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh | bash' > /usr/local/bin/sync-models && chmod +x /usr/local/bin/sync-models
 ```
 
 Danach reicht der Befehl: `sync-models`
