@@ -1,15 +1,18 @@
 #!/bin/bash
 
-# --- 1. System Setup ---
+# --- 1. System Setup (Fast checks) ---
 echo '🚀 Setting up Container...'
-apt-get update >/dev/null && apt-get install -y fish git curl aria2 >/dev/null
+if [ ! -f "/workspace/sys_deps_installed" ]; then
+    apt-get update >/dev/null && apt-get install -y fish git curl aria2 nano >/dev/null
+    touch /workspace/sys_deps_installed
+fi
 
 if [ ! -f /usr/local/bin/filebrowser ]; then
     echo '📥 Installing Filebrowser...'
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null
 fi
 
-# --- 2. ComfyUI Installation ---
+# --- 2. ComfyUI Installation (Persistent) ---
 cd /workspace
 if [ ! -d 'ComfyUI' ]; then
     echo '📥 Cloning ComfyUI...'
@@ -25,75 +28,72 @@ if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 fi
 
-# --- 3. Dependencies (CRITICAL: MUST RUN BEFORE DOWNLOADS) ---
-echo '📦 Installing Python Dependencies...'
-cd /workspace/ComfyUI
+# --- 3. Dependencies (SKIP IF INSTALLED) ---
+# Check for marker file to save time on restarts
+if [ -f "/workspace/comfy_deps_installed_v2" ]; then
+    echo "✅ Dependencies already installed. Skipping..."
+else
+    echo "📦 Installing/Updating Python Dependencies..."
+    cd /workspace/ComfyUI
 
-# 1. Install core requirements
-pip install -r requirements.txt >/dev/null
+    # 1. Install core requirements
+    pip install -r requirements.txt >/dev/null
 
-# 2. Upgrade PyTorch to 2.4.1 (Fixes "is_compiling" error in ComfyUI 0.7+)
-echo '   - Upgrading PyTorch to 2.4.1...'
-pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
+    # 2. Upgrade PyTorch (2.4.1)
+    echo '   - Upgrading PyTorch...'
+    pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
-# 3. Install Flash Attention (Essential for SeedVR)
-echo '   - Installing Xformers & Flash Attention (Wait for build)...'
-pip install ninja
-pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
-pip install flash-attn --no-build-isolation
+    # 3. Flash Attention & Xformers
+    echo '   - Installing Flash Attention (This takes time only once)...'
+    pip install ninja
+    pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
+    pip install flash-attn --no-build-isolation
 
-# 4. Install Helper Tools (Fixes "huggingface_hub not found")
-echo '   - Upgrading Tools...'
-python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab
+    # 4. Helper Tools
+    echo '   - Installing Tools...'
+    python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab
+
+    # Create marker file
+    touch /workspace/comfy_deps_installed_v2
+fi
 
 # --- 4. Custom Workflows (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
-    echo "📥 Syncing User Workflows from Hugging Face..."
+    echo "📥 Checking Workflows..."
     python3 -c "
 import os, sys
 try:
     from huggingface_hub import snapshot_download, login
-except ImportError:
-    print('❌ Error: huggingface_hub not installed!')
-    sys.exit(0)
-
-token = os.environ.get('HF_TOKEN')
-repo_id = os.environ.get('HF_WORKFLOWS')
-target_dir = '/workspace/ComfyUI/user/default/workflows'
-
-if token and repo_id:
-    try:
+    token = os.environ.get('HF_TOKEN')
+    repo_id = os.environ.get('HF_WORKFLOWS')
+    if token and repo_id:
         login(token=token)
-        print(f'⬇️  Downloading workflows from {repo_id}...')
-        snapshot_download(repo_id=repo_id, repo_type='dataset', local_dir=target_dir, local_dir_use_symlinks=False, ignore_patterns=['*.git*'])
-        print(f'✅ Workflows synced')
-    except Exception as e:
-        print(f'❌ Workflow Sync Failed: {e}')
+        snapshot_download(repo_id=repo_id, repo_type='dataset', local_dir='/workspace/ComfyUI/user/default/workflows', local_dir_use_symlinks=False, ignore_patterns=['*.git*'])
+        print('✅ Workflows synced')
+except Exception:
+    pass
 "
 fi
 
 # --- 5. Hugging Face Models Sync ---
 if [ ! -z "$HF_TOKEN" ] && [ ! -z "$HF_MODELS" ]; then
-    echo "🔐 Syncing Model Dataset..."
+    echo "🔐 Checking Models..."
     python3 -c "
 import os
-from huggingface_hub import snapshot_download, login
-token = os.environ.get('HF_TOKEN')
-dataset = os.environ.get('HF_MODELS')
-if token:
-    try:
+try:
+    from huggingface_hub import snapshot_download, login
+    token = os.environ.get('HF_TOKEN')
+    dataset = os.environ.get('HF_MODELS')
+    if token and dataset:
         login(token=token)
-        print(f'⬇️  Downloading models from {dataset}...')
         snapshot_download(repo_id=dataset, repo_type='dataset', local_dir='/workspace/ComfyUI/models', local_dir_use_symlinks=False, ignore_patterns=['*.git*'])
         print('✅ Models synced')
-    except Exception as e:
-        print(f'❌ Model Download Failed: {e}')
+except Exception:
+    pass
 "
-else
-    echo '⚠️ Skipping HF Sync: Variables not set.'
 fi
 
-# --- 6. Dependency Manager & Launch ---
+# --- 6. Launch Services ---
 cat <<EOF > /workspace/dep_manager.py
 import gradio as gr, subprocess, sys
 def install(pkg):
@@ -116,8 +116,4 @@ python3 /workspace/dep_manager.py &
 
 cd /workspace/ComfyUI
 echo '🎨 Launching ComfyUI...'
-nohup python3 main.py --listen 0.0.0.0 --port 8188 --preview-method auto > /workspace/comfyui.log 2>&1 &
-
-echo '🚀 SETUP COMPLETE.'
-touch /workspace/keep_alive.log
-tail -f /workspace/keep_alive.log
+python3 main.py --listen 0.0.0.0 --port 8188 --preview-method auto
