@@ -65,8 +65,26 @@ else
     # Pre-install helpers
     pip install ninja einops packaging
 
-    # RAM FIX: Limit compilation jobs to prevent freeze
-    export MAX_JOBS=2
+    # RAM FIX: Dynamically limit compilation jobs based on available RAM
+    echo "   - Checking system RAM..."
+    TOTAL_RAM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
+    
+    # Flash-attn needs ~4GB RAM per compilation job
+    # Calculate safe MAX_JOBS with minimum of 1 and maximum of 4
+    if [ "$TOTAL_RAM_GB" -lt 8 ]; then
+        export MAX_JOBS=1
+        echo "   - Low RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=1 (safe mode)"
+    elif [ "$TOTAL_RAM_GB" -lt 16 ]; then
+        export MAX_JOBS=2
+        echo "   - Medium RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=2"
+    elif [ "$TOTAL_RAM_GB" -lt 32 ]; then
+        export MAX_JOBS=3
+        echo "   - Good RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=3"
+    else
+        export MAX_JOBS=4
+        echo "   - High RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=4"
+    fi
 
     if [ "$IS_BLACKWELL" = true ]; then
         # --- PATH A: BLACKWELL (Bleeding Edge) ---
