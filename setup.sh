@@ -8,9 +8,6 @@ echo "   - Found: $CURRENT_GPU"
 # Check for Blackwell architecture (Future proofing)
 IS_BLACKWELL=false
 if [[ "$CURRENT_GPU" == *"Blackwell"* ]] || [[ "$CURRENT_GPU" == *"RTX 6000"* ]]; then
-    # Note: RTX 6000 Ada is sm_89, but "Blackwell Server Edition" triggered your error.
-    # We assume if it triggers the error, we need the bleeding edge mode.
-    # Safe bet: If the card requires sm_120, we need latest torch.
     echo "🚀 High-End/Next-Gen GPU detected. Enabling Bleeding Edge PyTorch mode."
     IS_BLACKWELL=true
 fi
@@ -68,43 +65,45 @@ else
     # Pre-install helpers
     pip install ninja einops packaging
 
+    # RAM FIX: Limit compilation jobs to prevent freeze
+    export MAX_JOBS=2
+
     if [ "$IS_BLACKWELL" = true ]; then
         # --- PATH A: BLACKWELL (Bleeding Edge) ---
-        echo "🔥 BLACKWELL MODE: Installing latest PyTorch (ignoring versions)..."
+        echo "🔥 BLACKWELL MODE: Installing latest PyTorch..."
         
-        # 1. Uninstall old stuff to be safe
+        # 1. Uninstall old stuff
         pip uninstall -y torch torchvision torchaudio xformers flash-attn
         
-        # 2. Install latest Torch (This pulls the sm_120 compatible version)
-        # We allow pip to resolve the latest compatible versions for all 3
+        # 2. Install latest Torch (sm_120 compatible)
         pip install --upgrade torch torchvision torchaudio
         
-        # 3. Compile Flash Attention (Takes time, but ensures compatibility with new torch)
-        echo "   - Compiling Flash Attention for Blackwell..."
+        # 3. Compile Flash Attention (RAM SAFE MODE)
+        echo "   - Compiling Flash Attention (Slow & Safe Mode)..."
+        # We enforce MAX_JOBS via env var above
         pip install flash-attn --no-build-isolation --force-reinstall
         
-        # 4. Try installing xformers (might fail or need build, we try standard pip)
+        # 4. Try installing xformers
         echo "   - Installing xformers..."
-        pip install xformers --no-deps || echo "⚠️ xformers install failed (expected on bleeding edge), skipping."
+        pip install xformers --no-deps || echo "⚠️ xformers skipped."
 
     else
-        # --- PATH B: STANDARD (Stable / Hopper / Ada) ---
+        # --- PATH B: STANDARD (Stable) ---
         echo "🛡️ STANDARD MODE: Installing Stable PyTorch 2.4.1..."
         
         # 1. Install core requirements
         pip install -r requirements.txt >/dev/null
 
-        # 2. Upgrade PyTorch to 2.4.1 (Stable)
+        # 2. Upgrade PyTorch to 2.4.1
         pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
-        # 3. Flash Attention & Xformers (Binary compatible)
+        # 3. Flash Attention & Xformers (Binary)
         pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
         pip install flash-attn --no-build-isolation --no-deps
     fi
 
-    # 5. Install Tools (Common)
+    # 5. Install Tools
     echo '   - Installing Tools...'
-    # We deliberately upgrade these at the end to ensure tqdm/gradio are present
     python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
 
     # Create marker file
