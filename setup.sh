@@ -71,7 +71,7 @@ else
     TOTAL_RAM_GB=$((TOTAL_RAM_KB / 1024 / 1024))
     
     # Flash-attn needs ~4GB RAM per compilation job
-    # Calculate safe MAX_JOBS with minimum of 1 and maximum of 4
+    # Calculate safe MAX_JOBS based on available RAM (optimized for RunPod)
     if [ "$TOTAL_RAM_GB" -lt 8 ]; then
         export MAX_JOBS=1
         echo "   - Low RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=1 (safe mode)"
@@ -79,11 +79,17 @@ else
         export MAX_JOBS=2
         echo "   - Medium RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=2"
     elif [ "$TOTAL_RAM_GB" -lt 32 ]; then
-        export MAX_JOBS=3
-        echo "   - Good RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=3"
-    else
         export MAX_JOBS=4
-        echo "   - High RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=4"
+        echo "   - Good RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=4"
+    elif [ "$TOTAL_RAM_GB" -lt 48 ]; then
+        export MAX_JOBS=6
+        echo "   - High RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=6"
+    elif [ "$TOTAL_RAM_GB" -lt 64 ]; then
+        export MAX_JOBS=8
+        echo "   - Very high RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=8"
+    else
+        export MAX_JOBS=12
+        echo "   - Extreme RAM detected (${TOTAL_RAM_GB}GB). Using MAX_JOBS=12 🚀"
     fi
 
     if [ "$IS_BLACKWELL" = true ]; then
