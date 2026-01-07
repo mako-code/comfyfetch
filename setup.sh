@@ -102,12 +102,16 @@ else
         # 2. Install latest Torch (sm_120 compatible)
         pip install --upgrade torch torchvision torchaudio
         
-        # 3. Compile Flash Attention (RAM SAFE MODE) - DISABLED: Using SDPA instead
+        # 3. Install ComfyUI requirements (after PyTorch to avoid version conflicts)
+        echo "   - Installing ComfyUI requirements..."
+        pip install -r requirements.txt --no-deps 2>/dev/null || pip install -r requirements.txt
+        
+        # 4. Compile Flash Attention (RAM SAFE MODE) - DISABLED: Using SDPA instead
         # echo "   - Compiling Flash Attention (Slow & Safe Mode)..."
         # We enforce MAX_JOBS via env var above
         # pip install flash-attn --no-build-isolation --force-reinstall
         
-        # 4. Try installing xformers
+        # 5. Try installing xformers
         echo "   - Installing xformers..."
         pip install xformers --no-deps || echo "⚠️ xformers skipped."
 
@@ -132,7 +136,7 @@ fi
 
 # --- 5. Essential Tools (Always ensure installed) ---
 echo '📦 Ensuring essential tools are installed...'
-python3 -m pip install --quiet --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm scipy aiohttp
+python3 -m pip install --quiet --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm scipy aiohttp torchsde
 
 # --- 5. Custom Workflows (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
