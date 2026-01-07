@@ -20,7 +20,7 @@ try:
     from huggingface_hub import snapshot_download, login
     token = os.environ.get('HF_TOKEN')
     repo_id = os.environ.get('HF_WORKFLOWS')
-    target = '/workspace/ComfyUI/user/default/workflows'
+    target = '/workspace/runpod-slim/ComfyUI/user/default/workflows'
     
     if repo_id:
         if token:
@@ -49,7 +49,7 @@ try:
     from huggingface_hub import snapshot_download, login
     token = os.environ.get('HF_TOKEN')
     dataset = os.environ.get('HF_MODELS')
-    target = '/workspace/ComfyUI/models'
+    target = '/workspace/runpod-slim/ComfyUI/models'
     
     if dataset:
         if token:
