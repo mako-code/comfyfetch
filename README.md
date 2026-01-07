@@ -1,56 +1,50 @@
 # ComfyFetch
 
-Automatisches Setup-Skript für ComfyUI auf RunPod. Installiert PyTorch 2.4.1, Flash Attention 2 und synchronisiert private Daten von Hugging Face.
+Post-startup script for syncing models and workflows to ComfyUI on RunPod.
 
-## RunPod Start Command
+## RunPod Template Settings
 
-Füge dies in das Feld **Container Start Command** im Template ein:
+| Setting | Value |
+|---------|-------|
+| **Image** | `runpod/comfyui:latest` |
+| **Startup Command** | See below |
+
+## Startup Command
 
 ```bash
-/bin/bash -c "curl -fsSL [https://raw.githubusercontent.com/mako-code/comfyfetch/main/setup.sh](https://raw.githubusercontent.com/mako-code/comfyfetch/main/setup.sh) | bash"
-
+bash -c "curl -sSL https://raw.githubusercontent.com/mako-code/comfyfetch/main/setup.sh | bash"
 ```
 
-*Cache umgehen:* `.../setup.sh?v=1 | bash`
+> **Tipp:** Cache umgehen mit `.../setup.sh?v=1`
 
 ## Environment Variables
 
-Diese Variablen im RunPod Template setzen:
-
 | Variable | Beschreibung | Beispiel |
 | --- | --- | --- |
-| `HF_TOKEN` | Hugging Face Token (Read). | `hf_...` |
-| `HF_MODELS` | Dataset für Modelle. Landet in `/models`. | `User/comfy-models` |
-| `HF_WORKFLOWS` | Dataset für `.json` Workflows. Landet in `/user/...` | `User/comfy-workflows` |
+| `HF_TOKEN` | Hugging Face Token (Read) | `hf_...` |
+| `HF_MODELS` | Dataset für Modelle → `/workspace/ComfyUI/models` | `User/comfy-models` |
+| `HF_WORKFLOWS` | Dataset für Workflows → `/workspace/ComfyUI/user/default/workflows` | `User/comfy-workflows` |
 
-## Dienste & Ports
+## Ports (via runpod/comfyui)
 
-* **8188:** ComfyUI
-* **8888:** Jupyter Lab
-* **8080:** Filebrowser
-* **3000:** Dependency Manager (pip GUI)
+| Service | Port |
+|---------|------|
+| ComfyUI | 3000 |
+| Filebrowser | 8080 |
+| JupyterLab | 8888 |
 
-## Manueller Sync (Laufender Betrieb)
-
-Um neue Modelle oder Workflows ohne Neustart des Pods herunterzuladen:
-
-**Einmaliger Befehl:**
+## Manueller Sync
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh | bash
 ```
 
-**Alias einrichten (empfohlen):**
-Führe dies einmal im Terminal aus, um den Befehl `sync-models` zu erstellen:
-
+Oder Alias einrichten:
 ```bash
 echo 'curl -fsSL https://raw.githubusercontent.com/mako-code/comfyfetch/main/sync.sh | bash' > /usr/local/bin/sync-models && chmod +x /usr/local/bin/sync-models
 ```
 
-Danach reicht der Befehl: `sync-models`
-
 ## Hinweise
 
-* **Dauer:** Erster Start dauert ca. 3-5 Min (Kompilierung von Flash Attention).
-* **Struktur:** Das Skript erwartet im `HF_MODELS` Dataset Unterordner wie `checkpoints`, `loras`, `vae` etc.
-* **Updates:** Nach dem erstmaligen Starten von ComfyUI sollte über den ComfyUI-Manager einmal "Update all" ausgeführt und im Anschluss der ComfyUI-Server neugestartet werden.
+* **Struktur:** Das `HF_MODELS` Dataset sollte Unterordner wie `checkpoints`, `loras`, `vae` etc. enthalten
+* **Updates:** Nach dem ersten Start über ComfyUI-Manager "Update all" ausführen
