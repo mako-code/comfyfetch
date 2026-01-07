@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # --- ComfyFetch: RunPod Template Script ---
-# Handles: ComfyUI setup, HuggingFace sync, Filebrowser, JupyterLab, Dependency Manager
+# For use with: runpod/pytorch:2.2.1-py3.10-cuda12.1.1-devel-ubuntu22.04
 
 echo "🔍 Starting ComfyFetch..."
 
@@ -33,7 +33,18 @@ if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
     git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
 fi
 
-# --- 3. Install Python tools ---
+# --- 3. Python Dependencies ---
+if [ ! -f "/workspace/comfy_deps_installed" ]; then
+    echo '📦 Installing ComfyUI dependencies...'
+    cd /workspace/ComfyUI
+    pip install -r requirements.txt
+    pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
+    touch /workspace/comfy_deps_installed
+else
+    echo '✅ Dependencies already installed.'
+fi
+
+# Install tools for sync and services
 pip install --quiet huggingface_hub gradio jupyterlab
 
 # --- 4. Workflows Sync (Hugging Face) ---
