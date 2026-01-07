@@ -126,13 +126,13 @@ else
         # pip install flash-attn --no-build-isolation --no-deps
     fi
 
-    # 5. Install Tools
-    echo '   - Installing Tools...'
-    python3 -m pip install --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
-
     # Create marker file
     touch /workspace/comfy_deps_installed_v2
 fi
+
+# --- 5. Essential Tools (Always ensure installed) ---
+echo '📦 Ensuring essential tools are installed...'
+python3 -m pip install --quiet --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
 
 # --- 5. Custom Workflows (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
