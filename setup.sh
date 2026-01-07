@@ -2,9 +2,11 @@
 
 # --- ComfyFetch: Models & Workflows Sync Script ---
 # This script ONLY handles downloading models and workflows from Hugging Face.
-# Dependencies and ComfyUI setup should be handled separately (e.g., in Docker image).
 
 echo "🔍 Starting ComfyFetch..."
+
+# Ensure huggingface_hub is installed
+pip install --quiet huggingface_hub
 
 # --- 1. Workflows Sync (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
