@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# --- ComfyFetch: Models & Workflows Sync + Services ---
-# Handles: HuggingFace sync, Filebrowser, JupyterLab, Dependency Manager
+# --- ComfyFetch: RunPod Template Script ---
+# Handles: ComfyUI setup, HuggingFace sync, Filebrowser, JupyterLab, Dependency Manager
 
 echo "🔍 Starting ComfyFetch..."
 
@@ -17,10 +17,26 @@ if [ ! -f /usr/local/bin/filebrowser ]; then
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null
 fi
 
-# --- 2. Install Python tools ---
+# --- 2. ComfyUI Installation ---
+cd /workspace
+if [ ! -d 'ComfyUI' ]; then
+    echo '📥 Cloning ComfyUI...'
+    git clone https://github.com/comfyanonymous/ComfyUI.git
+else
+    echo '🔄 Updating ComfyUI...'
+    cd /workspace/ComfyUI && git pull
+fi
+
+mkdir -p /workspace/ComfyUI/custom_nodes
+if [ ! -d '/workspace/ComfyUI/custom_nodes/ComfyUI-Manager' ]; then
+    echo '📥 Installing ComfyUI Manager...'
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git /workspace/ComfyUI/custom_nodes/ComfyUI-Manager
+fi
+
+# --- 3. Install Python tools ---
 pip install --quiet huggingface_hub gradio jupyterlab
 
-# --- 3. Workflows Sync (Hugging Face) ---
+# --- 4. Workflows Sync (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
     echo "📥 Syncing Workflows..."
     python3 -c "
@@ -38,7 +54,7 @@ except Exception as e:
 "
 fi
 
-# --- 4. Models Sync (Hugging Face) ---
+# --- 5. Models Sync (Hugging Face) ---
 if [ ! -z "$HF_TOKEN" ] && [ ! -z "$HF_MODELS" ]; then
     echo "🔐 Syncing Models..."
     python3 -c "
@@ -56,7 +72,7 @@ except Exception as e:
 "
 fi
 
-# --- 5. Launch Services ---
+# --- 6. Launch Services ---
 cat <<EOF > /workspace/dep_manager.py
 import gradio as gr, subprocess, sys
 def install(pkg):
@@ -72,8 +88,11 @@ demo.launch(server_name='0.0.0.0', server_port=3000)
 EOF
 
 echo '✅ Starting Services...'
+chmod -R 777 /workspace/ComfyUI/custom_nodes
 filebrowser -r /workspace -p 8080 -a 0.0.0.0 --noauth -d /tmp/fb.db &
 nohup jupyter lab --ip 0.0.0.0 --port 8888 --allow-root --no-browser --NotebookApp.token='' --notebook-dir=/workspace > /workspace/jupyter.log 2>&1 &
 python3 /workspace/dep_manager.py &
 
-echo "✅ ComfyFetch complete!"
+cd /workspace/ComfyUI
+echo '🎨 Launching ComfyUI...'
+python3 main.py --listen 0.0.0.0 --port 8188 --preview-method auto
