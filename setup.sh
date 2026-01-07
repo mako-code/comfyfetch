@@ -104,7 +104,7 @@ else
         
         # 3. Install ComfyUI requirements (after PyTorch to avoid version conflicts)
         echo "   - Installing ComfyUI requirements..."
-        pip install -r requirements.txt --no-deps 2>/dev/null || pip install -r requirements.txt
+        pip install -r requirements.txt
         
         # 4. Compile Flash Attention (RAM SAFE MODE) - DISABLED: Using SDPA instead
         # echo "   - Compiling Flash Attention (Slow & Safe Mode)..."
