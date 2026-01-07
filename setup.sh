@@ -102,10 +102,10 @@ else
         # 2. Install latest Torch (sm_120 compatible)
         pip install --upgrade torch torchvision torchaudio
         
-        # 3. Compile Flash Attention (RAM SAFE MODE)
-        echo "   - Compiling Flash Attention (Slow & Safe Mode)..."
+        # 3. Compile Flash Attention (RAM SAFE MODE) - DISABLED: Using SDPA instead
+        # echo "   - Compiling Flash Attention (Slow & Safe Mode)..."
         # We enforce MAX_JOBS via env var above
-        pip install flash-attn --no-build-isolation --force-reinstall
+        # pip install flash-attn --no-build-isolation --force-reinstall
         
         # 4. Try installing xformers
         echo "   - Installing xformers..."
@@ -121,9 +121,9 @@ else
         # 2. Upgrade PyTorch to 2.4.1
         pip install torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.1 --index-url https://download.pytorch.org/whl/cu121
 
-        # 3. Flash Attention & Xformers (Binary)
+        # 3. Flash Attention & Xformers (Binary) - Flash-attn DISABLED: Using SDPA instead
         pip install xformers==0.0.28.post1 --index-url https://download.pytorch.org/whl/cu121
-        pip install flash-attn --no-build-isolation --no-deps
+        # pip install flash-attn --no-build-isolation --no-deps
     fi
 
     # 5. Install Tools
