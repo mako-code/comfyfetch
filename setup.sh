@@ -132,7 +132,7 @@ fi
 
 # --- 5. Essential Tools (Always ensure installed) ---
 echo '📦 Ensuring essential tools are installed...'
-python3 -m pip install --quiet --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm
+python3 -m pip install --quiet --upgrade transformers huggingface_hub gradio gradio_client jupyterlab tqdm scipy aiohttp
 
 # --- 5. Custom Workflows (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
