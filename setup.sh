@@ -1,14 +1,26 @@
 #!/bin/bash
 
-# --- ComfyFetch: Models & Workflows Sync Script ---
-# This script ONLY handles downloading models and workflows from Hugging Face.
+# --- ComfyFetch: Models & Workflows Sync + Services ---
+# Handles: HuggingFace sync, Filebrowser, JupyterLab, Dependency Manager
 
 echo "🔍 Starting ComfyFetch..."
 
-# Ensure huggingface_hub is installed
-pip install --quiet huggingface_hub
+# --- 1. System Setup ---
+echo '🚀 Setting up Container...'
+if [ ! -f "/workspace/sys_deps_installed" ]; then
+    apt-get update >/dev/null && apt-get install -y fish git curl aria2 nano >/dev/null
+    touch /workspace/sys_deps_installed
+fi
 
-# --- 1. Workflows Sync (Hugging Face) ---
+if [ ! -f /usr/local/bin/filebrowser ]; then
+    echo '📥 Installing Filebrowser...'
+    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash >/dev/null
+fi
+
+# --- 2. Install Python tools ---
+pip install --quiet huggingface_hub gradio jupyterlab
+
+# --- 3. Workflows Sync (Hugging Face) ---
 if [ ! -z "$HF_WORKFLOWS" ]; then
     echo "📥 Syncing Workflows..."
     python3 -c "
@@ -26,7 +38,7 @@ except Exception as e:
 "
 fi
 
-# --- 2. Models Sync (Hugging Face) ---
+# --- 4. Models Sync (Hugging Face) ---
 if [ ! -z "$HF_TOKEN" ] && [ ! -z "$HF_MODELS" ]; then
     echo "🔐 Syncing Models..."
     python3 -c "
@@ -43,5 +55,25 @@ except Exception as e:
     print(f'⚠️ Models sync failed: {e}')
 "
 fi
+
+# --- 5. Launch Services ---
+cat <<EOF > /workspace/dep_manager.py
+import gradio as gr, subprocess, sys
+def install(pkg):
+    try: subprocess.check_call([sys.executable, '-m', 'pip', 'install', pkg]); return f'✅ Installed: {pkg}'
+    except Exception as e: return f'❌ Error: {str(e)}'
+def freeze(): return subprocess.check_output([sys.executable, '-m', 'pip', 'freeze']).decode('utf-8')
+with gr.Blocks(title='RunPod Dep Manager') as demo:
+    gr.Markdown('## 📦 Dependency Manager')
+    with gr.Row(): inp = gr.Textbox(placeholder='package', label='Package'); btn = gr.Button('Install')
+    out = gr.Textbox(label='Status'); btn.click(install, inputs=inp, outputs=out)
+    with gr.Accordion('List', open=False): gr.Button('Refresh').click(freeze, outputs=gr.TextArea())
+demo.launch(server_name='0.0.0.0', server_port=3000)
+EOF
+
+echo '✅ Starting Services...'
+filebrowser -r /workspace -p 8080 -a 0.0.0.0 --noauth -d /tmp/fb.db &
+nohup jupyter lab --ip 0.0.0.0 --port 8888 --allow-root --no-browser --NotebookApp.token='' --notebook-dir=/workspace > /workspace/jupyter.log 2>&1 &
+python3 /workspace/dep_manager.py &
 
 echo "✅ ComfyFetch complete!"
